@@ -1,0 +1,63 @@
+datasource db {
+    provider = "mysql"
+    url      = env("DATABASE_URL_WITH_SCHEMA")
+}
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+model Account {
+    id       Int    @id @default(autoincrement())
+    userId   Int?   @unique
+    userRole String @default("guest") @db.VarChar(256)
+    username String @db.VarChar(256)
+    password String @db.VarChar(256)
+    /// Zero is default, 1 is verified
+    status   Int    @default(0)
+
+    createdAt DateTime @default(now()) @db.DateTime(0)
+    updatedAt DateTime @default(now()) @db.DateTime(0)
+
+    session  Session[]
+    userInfo UserInfo? @relation(fields: [userId], references: [id])
+
+    @@index([username, password])
+	@@map("account")
+}
+
+model Session {
+    id         Int    @id @default(autoincrement())
+    accountId  Int
+    userId     Int?
+    token      String @unique(map: "token") @db.VarChar(50)
+    deviceInfo String @db.VarChar(5000)
+    userRole   String @db.VarChar(256)
+
+    createdAt DateTime @default(now()) @db.DateTime(0)
+    updatedAt DateTime @default(now()) @db.DateTime(0)
+
+    account  Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+    userInfo UserInfo? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([accountId])
+	@@map("session")
+}
+
+model UserInfo {
+    id             Int      @id @default(autoincrement())
+    fullname       String   @db.VarChar(256)
+    phone          String?  @db.VarChar(20)
+    email          String?  @db.VarChar(256)
+    address        String   @db.VarChar(512)
+    gender         Int
+    birthday       DateTime @db.Date
+    avatarImageURI String?  @db.VarChar(256)
+
+    createdAt DateTime @default(now()) @db.DateTime(0)
+    updatedAt DateTime @default(now()) @db.DateTime(0)
+
+    account  Account?
+    sessions Session[]
+	@@map("user_info")
+}
