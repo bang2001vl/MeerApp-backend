@@ -23,7 +23,7 @@ model Account {
     userInfo UserInfo? @relation(fields: [userId], references: [id])
 
     @@index([username, password])
-	@@map("account")
+    @@map("account")
 }
 
 model Session {
@@ -37,27 +37,116 @@ model Session {
     createdAt DateTime @default(now()) @db.DateTime(0)
     updatedAt DateTime @default(now()) @db.DateTime(0)
 
-    account  Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+    account  Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
     userInfo UserInfo? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    @@index([accountId])
-	@@map("session")
+    @@index([token])
+    @@map("session")
 }
 
 model UserInfo {
     id             Int      @id @default(autoincrement())
     fullname       String   @db.VarChar(256)
+    birthday       DateTime @db.Date
+    gender         Int
     phone          String?  @db.VarChar(20)
     email          String?  @db.VarChar(256)
     address        String   @db.VarChar(512)
-    gender         Int
-    birthday       DateTime @db.Date
+    description    String   @db.VarChar(5000)
     avatarImageURI String?  @db.VarChar(256)
 
     createdAt DateTime @default(now()) @db.DateTime(0)
     updatedAt DateTime @default(now()) @db.DateTime(0)
 
-    account  Account?
-    sessions Session[]
-	@@map("user_info")
+    account          Account?
+    sessions         Session[]
+    createdCampaign  Campaign[]
+    createdEmergency Emergency[]
+    joinedCampaign   JOIN_CompaignUser[]
+    reportedCampaign REPORT_CompaignUser[]
+    donedCampaign    DONE_CompaignUser[]
+    donedEmergency   DONE_EmergencyUser[]
+    @@map("user_info")
+}
+
+model Campaign {
+    id            Int      @id @default(autoincrement())
+    creatorId     Int
+    title         String   @db.VarChar(1000)
+    content       String   @db.VarChar(10000)
+    dateTimeStart DateTime
+    address       String   @db.VarChar(1000)
+    gpslongti     Float
+    gpslati       Float
+    imageURI      String?  @db.VarChar(256)
+
+    createdAt DateTime @default(now()) @db.DateTime(0)
+    updatedAt DateTime @default(now()) @db.DateTime(0)
+
+    creator  UserInfo              @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+    joined   JOIN_CompaignUser[]
+    reported REPORT_CompaignUser[]
+    doned    DONE_CompaignUser[]
+    @@map("campaign")
+}
+
+model Emergency {
+    id        Int     @id @default(autoincrement())
+    creatorId Int
+    title     String  @db.VarChar(1000)
+    content   String  @db.VarChar(10000)
+    address   String  @db.VarChar(1000)
+    gpslongti Float
+    gpslati   Float
+    imageURI  String? @db.VarChar(256)
+
+    createdAt DateTime @default(now()) @db.DateTime(0)
+    updatedAt DateTime @default(now()) @db.DateTime(0)
+
+    creator UserInfo             @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+    doned   DONE_EmergencyUser[]
+    @@map("emergency")
+}
+
+model JOIN_CompaignUser {
+    id         Int @id @default(autoincrement())
+    compaignId Int
+    userId     Int
+    status  Int
+
+    compaign Campaign @relation(fields: [compaignId], references: [id], onDelete: Cascade)
+    user     UserInfo @relation(fields: [userId], references: [id], onDelete: Cascade)
+    @@map("join_compaign_user")
+}
+
+model REPORT_CompaignUser {
+    id         Int    @id @default(autoincrement())
+    compaignId Int
+    userId     Int
+    reason     String @db.VarChar(10000)
+
+    compaign Campaign @relation(fields: [compaignId], references: [id], onDelete: Cascade)
+    user     UserInfo @relation(fields: [userId], references: [id], onDelete: Cascade)
+    @@map("report_compaign_user")
+}
+
+model DONE_CompaignUser {
+    id         Int    @id @default(autoincrement())
+    compaignId Int
+    userId     Int
+    comment    String @db.VarChar(10000)
+
+    compaign Campaign @relation(fields: [compaignId], references: [id], onDelete: Cascade)
+    user     UserInfo @relation(fields: [userId], references: [id], onDelete: Cascade)
+    @@map("done_compaign_user")
+}
+
+model DONE_EmergencyUser {
+    id          Int @id @default(autoincrement())
+    emergencyId Int
+    userId      Int
+
+    emergency Emergency @relation(fields: [emergencyId], references: [id], onDelete: Cascade)
+    user      UserInfo  @relation(fields: [userId], references: [id], onDelete: Cascade)
+    @@map("done_emergency_user")
 }
