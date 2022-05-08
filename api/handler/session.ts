@@ -74,4 +74,15 @@ export default class SessionHandler {
        ]
        return middlewares;
    }
+
+   static async setData(sessionId: any, data: any){
+       await myPrisma.session.update({
+           where:{
+               id: sessionId
+           },
+           data: {
+               data: JSON.stringify(data),
+           }
+       });
+   }
 }

@@ -91,9 +91,10 @@ export const RouteBuilder = {
         return RouteHandleWrapper.wrapCheckInput((input) => {
             if (input
                 && typeof input.searchby === "string"
-                && typeof input.searchvalue === "string"
+                //&& typeof input.searchvalue === "string"
                 && searchProperties.includes(input.searchby)
             ) {
+                input.searchvalue = input.searchvalue || "";
                 return input;
             }
 
@@ -106,17 +107,18 @@ export const RouteBuilder = {
         return RouteHandleWrapper.wrapCheckInput((input) => {
             if (input
                 && typeof input.searchby === "string"
-                && typeof input.searchvalue === "string"
+                //&& typeof input.searchvalue === "string"
                 && typeof input.orderby === "string"
                 && typeof input.orderdirection === "string"
                 && searchProperties.includes(input.searchby)
                 && orderProperties.includes(input.orderby)
                 && (input.orderdirection === "asc" || input.orderdirection === "desc")
-                && !isNaN(input.start)
-                && !isNaN(input.count)
+                //&& !isNaN(input.start)
+                //&& !isNaN(input.count)
             ) {
                 input.start = parseInt(input.start);
                 input.count = parseInt(input.count);
+                input.searchvalue = input.searchvalue || "";
 
                 return input;
             }

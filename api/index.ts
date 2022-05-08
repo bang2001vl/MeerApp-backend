@@ -4,9 +4,11 @@ import appConfig from "../config";
 import helper from "../helper";
 import { CampaignRoute } from "./route/campaign";
 import { EmergencyRoute } from "./route/emergency";
+import { LiveGPSRoute } from "./route/livegps";
 import { routeLogin } from "./route/login";
 import { NearByRoute } from "./route/nearby";
 import { signupRoute } from "./route/signup";
+import { UserRoute } from "./route/user";
 
 const tag = "API Server";
 
@@ -24,6 +26,9 @@ export function startExpress() {
     app.use("/campaign", CampaignRoute());
     app.use("/emergency", EmergencyRoute());
     app.use("/nearby", NearByRoute());
+    app.use("/livegps", LiveGPSRoute());
+
+    app.use("/user", UserRoute())
 
     app.use(handleResponse);
 

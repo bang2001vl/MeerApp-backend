@@ -7,9 +7,12 @@ import appConfig from "../../config";
 import helper from "../../helper";
 import { myPrisma } from "../../prisma";
 import SessionHandler from "../handler/session"
-import { buildResponseError, cacheOldImage, handleCleanUp, parsePathToPublicRelative } from "./utilities";
+import { CampaignDetailRoute } from "./campaign_details";
+import { buildResponseError, buildResponseSuccess, cacheOldImage, handleCleanUp, parsePathToPublicRelative } from "./utilities";
 import { RouteBuilder } from "./_default";
 import { RouteHandleWrapper } from "./_wrapper";
+import { checkCampaignOwner } from "./user";
+import { NotifySingleton } from "../../socketio";
 
 const DEFAULT_UPLOAD_FOLDER = path.resolve(appConfig.publicFolder, "uploads", "campaign");
 const upload = multer({
@@ -21,7 +24,7 @@ const upload = multer({
             helper.logger.trace("A");
             const unique = v1();
             const ext = path.extname(file.originalname);
-            cb(null, unique + ext);
+            cb(null, file.fieldname + unique + ext);
         }
     }),
 })
@@ -33,13 +36,34 @@ export const CampaignRoute = () => {
     const route = Router();
     route.use(json());
 
+    route.get("/detail/id",
+        RouteHandleWrapper.wrapMiddleware(async (req, res) => {
+            let key: any = req.query.key;
+            if (isNaN(key)) {
+                throw buildResponseError(1, "Invalid input");
+            }
+
+            const result = await findDetail(parseInt(key));
+
+            res.locals.responseData = buildResponseSuccess(result);
+        }),
+    );
+
     route.get("/select",
-        RouteBuilder.buildSelectInputParser(["title", "content"], ["title", "content", "dateTimeStart", "createAt"], tag),
-        RouteBuilder.buildSelectRoute(repo, tag),
+        RouteBuilder.buildSelectInputParser(["title", "content"], ["title", "content", "dateTimeStart", "createdAt"], tag),
+        RouteBuilder.buildSelectRoute(repo, tag, undefined, undefined, {
+            creator: {
+                select: {
+                    id: true,
+                    fullname: true,
+                    avatarImageURI: true,
+                }
+            }
+        }),
     );
 
     route.get("/selectbycreatorid",
-        RouteBuilder.buildSelectInputParser(["title", "content"], ["title", "content", "dateTimeStart", "createAt"], tag),
+        RouteBuilder.buildSelectInputParser(["title", "content"], ["title", "content", "dateTimeStart", "createdAt"], tag),
         RouteBuilder.buildSelectRoute(repo, tag, (input) => {
             if (!isNaN(input.creatorId)) {
                 return {
@@ -59,17 +83,21 @@ export const CampaignRoute = () => {
 
     route.post("/insert",
         SessionHandler.sessionMiddleware,
-        RouteHandleWrapper.wrapMulterUpload(upload.fields([{ name: "image", maxCount: 1 }])),
+        RouteHandleWrapper.wrapMulterUpload(upload.fields([{ name: "image", maxCount: 1 }, { name: "banner", maxCount: 1 }])),
         RouteHandleWrapper.wrapCheckInput(parseInputInsert, tag),
         addCreatorId,
         addUploadedURIs,
         RouteBuilder.buildInsertRoute(repo, tag),
+        RouteHandleWrapper.wrapMiddleware((req,res)=>{
+            const record = res.locals.responseData.data;
+            NotifySingleton.newCampaigned(record.id, record);
+        }, tag, true),
         handleCleanUp,
     );
 
     route.put("/update",
         SessionHandler.sessionMiddleware,
-        RouteHandleWrapper.wrapMulterUpload(upload.fields([{ name: "image", maxCount: 1 }])),
+        RouteHandleWrapper.wrapMulterUpload(upload.fields([{ name: "image", maxCount: 1 }, { name: "banner", maxCount: 1 }])),
         RouteHandleWrapper.wrapCheckInput(parseInputUpdate, tag),
         addUploadedURIs,
         cacheOldData,
@@ -78,7 +106,7 @@ export const CampaignRoute = () => {
                 res.locals.error = buildResponseError(3, "Unauthorized");
             }
         }, tag, true),
-        cacheOldImage(["imageURI"]),
+        cacheOldImage(["imageURI", "bannerURI"]),
         RouteBuilder.buildUpdateRoute(repo, tag),
         handleCleanUp,
     );
@@ -94,19 +122,23 @@ export const CampaignRoute = () => {
                 select: {
                     creatorId: true,
                     imageURI: true,
+                    bannerURI: true,
                 }
             });
 
             res.locals.oldImages = [];
             for (let i = 0; i < oldRecords.length; i++) {
-                const { imageURI } = oldRecords[i];
+                const { imageURI, bannerURI } = oldRecords[i];
                 if (imageURI) {
                     res.locals.oldImages.push(imageURI);
+                }
+                if (bannerURI) {
+                    res.locals.oldImages.push(bannerURI);
                 }
             }
 
             // User must not delete records which belong to other
-            if(!oldRecords.every(e=>e.creatorId === userId)){
+            if (!oldRecords.every(e => e.creatorId === userId)) {
                 res.locals.error = buildResponseError(3, "Unauthorized");
             }
         }, tag, true),
@@ -122,8 +154,207 @@ export const CampaignRoute = () => {
         }
     );
 
+    route.post("/inviteuser",
+        SessionHandler.sessionMiddleware,
+        RouteHandleWrapper.wrapCheckInput(input => {
+            if (input
+                && !isNaN(input.campaignId)
+                && Array.isArray(input.userIds)
+                && input.userIds.every((e: any) => typeof e === "number")
+            ) {
+                const campaignId = parseInt(input.campaignId);
+                return {
+                    campaignId,
+                    userIds: input.userIds,
+                }
+            }
+        }, tag),
+        checkCampaignOwner,
+        RouteHandleWrapper.wrapHandleInput(async (input) => {
+            const campaignId = input.campaignId;
+            const data = input.userIds.map((e: any) => {
+                return {
+                    campaignId,
+                    userId: e,
+                }
+            });
+            const result = await myPrisma.jOIN_CompaignUser.createMany({
+                data: data,
+            });
+            return result;
+        }, tag),
+    );
+
+    route.post("/kickuser",
+        SessionHandler.sessionMiddleware,
+        RouteHandleWrapper.wrapCheckInput(input => {
+            if (input
+                && !isNaN(input.campaignId)
+                && Array.isArray(input.userIds)
+                && input.userIds.every((e: any) => typeof e === "number")
+            ) {
+                const campaignId = parseInt(input.campaignId);
+                return {
+                    campaignId,
+                    userIds: input.userIds
+                }
+            }
+        }, tag),
+        checkCampaignOwner,
+        RouteHandleWrapper.wrapHandleInput(async (input) => {
+            const result = await myPrisma.jOIN_CompaignUser.deleteMany({
+                where: {
+                    userId: { in: input.userIds }
+                },
+            });
+            return result;
+        }, tag),
+    );
+
+    route.post("/finish",
+        SessionHandler.sessionMiddleware,
+        RouteHandleWrapper.wrapCheckInput(input => {
+            if (input
+                && !isNaN(input.campaignId)
+                && Array.isArray(input.doneIds)
+                && input.doneIds.every((e: any) => typeof e === "number")
+                && Array.isArray(input.absentIds)
+                && input.absentIds.every((e: any) => typeof e === "number")
+            ) {
+                const campaignId = parseInt(input.campaignId);
+                return {
+                    campaignId,
+                    doneIds: input.doneIds,
+                    absentIds: input.absentIds,
+                }
+            }
+        }, tag),
+        checkCampaignOwner,
+        RouteHandleWrapper.wrapHandleInput(async (input) => {
+            const campaignId = input.campaignId;
+            const doneIds: number[] = input.doneIds;
+            const absentIds: number[] = input.absentIds;
+
+            const joinIds = (await myPrisma.jOIN_CompaignUser.findMany({
+                where: { campaignId: campaignId }
+            })).map(e => e.userId);
+            const joinAndDonesIds = doneIds.filter(e => joinIds.includes(e));
+            const joinNotDoneIds = joinIds.filter(e => !joinAndDonesIds.includes(e));
+
+            const [r1, r2, r3, r4] = await myPrisma.$transaction([
+                myPrisma.dONE_CompaignUser.createMany({
+                    data: doneIds.map((e: any) => {
+                        return {
+                            campaignId,
+                            userId: e,
+                        }
+                    }),
+                }),
+                myPrisma.aBSENT_CompaignUser.createMany({
+                    data: absentIds.map((e: any) => {
+                        return {
+                            campaignId,
+                            userId: e,
+                        }
+                    }),
+                }),
+                myPrisma.nOTDONE_CompaignUser.createMany({
+                    data: joinNotDoneIds.map(e => {
+                        return {
+                            campaignId: campaignId,
+                            userId: e,
+                        }
+                    })
+                }),
+                repo.update({
+                    where: { id: campaignId },
+                    data: {
+                        status: 2
+                    }
+                }),
+            ])
+
+            return true;
+        }, tag),
+    );
+
+    route.use("/detail", CampaignDetailRoute());
+
     return route;
 };
+
+async function findDetail(key: number) {
+    const result = await repo.findUnique({
+        where: { id: key },
+        include: {
+            joined: {
+                select: {
+                    user: {
+                        select: {
+                            id: true,
+                            fullname: true,
+                            avatarImageURI: true,
+                        }
+                    }
+                }
+            },
+            doned: {
+                select: {
+                    user: {
+                        select: {
+                            id: true,
+                            fullname: true,
+                            avatarImageURI: true,
+                        }
+                    }
+                }
+            },
+            absent: {
+                select: {
+                    user: {
+                        select: {
+                            id: true,
+                            fullname: true,
+                            avatarImageURI: true,
+                        }
+                    }
+                }
+            },
+            reported: {
+                select: {
+                    user: {
+                        select: {
+                            id: true,
+                            fullname: true,
+                            avatarImageURI: true,
+                        }
+                    },
+                    reason: true,
+                }
+            },
+            notdone: {
+                select: {
+                    user: {
+                        select: {
+                            id: true,
+                            fullname: true,
+                            avatarImageURI: true,
+                        }
+                    },
+                }
+            }
+        }
+    });
+    if (!result) {
+        return {};
+    }
+
+    result.joined = result.joined.map(e => e.user) as any;
+    result.doned = result.doned.map(e => e.user) as any;
+    result.absent = result.absent.map(e => e.user) as any;
+    result.notdone = result.notdone.map(e => e.user) as any;
+    return result;
+}
 
 function parseInputInsert(input: any) {
     helper.logger.traceWithTag(tag, "Have input : " + JSON.stringify(input, null, 2));
@@ -177,6 +408,9 @@ function addUploadedURIs(req: any, res: Response, next: NextFunction) {
         if (req.files["image"] && req.files["image"].length === 1) {
             res.locals.input.data["imageURI"] = parsePathToPublicRelative(req.files["image"][0].path);
         }
+        if (req.files["banner"] && req.files["banner"].length === 1) {
+            res.locals.input.data["bannerURI"] = parsePathToPublicRelative(req.files["banner"][0].path);
+        }
         helper.logger.trace("Locals: " + JSON.stringify(res.locals, null, 2));
     }
     next();
@@ -188,6 +422,7 @@ const cacheOldData = RouteHandleWrapper.wrapMiddleware(async (req, res) => {
         const old = await repo.findUnique({
             where: { id: key },
             select: {
+                bannerURI: true,
                 imageURI: true,
                 creatorId: true,
             }

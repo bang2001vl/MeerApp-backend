@@ -33,6 +33,7 @@ model Session {
     token      String @unique(map: "token") @db.VarChar(50)
     deviceInfo String @db.VarChar(5000)
     userRole   String @db.VarChar(256)
+    data   String @db.VarChar(2000) @default("{}") 
 
     createdAt DateTime @default(now()) @db.DateTime(0)
     updatedAt DateTime @default(now()) @db.DateTime(0)
@@ -53,6 +54,7 @@ model UserInfo {
     email          String?  @db.VarChar(256)
     address        String   @db.VarChar(512)
     description    String   @db.VarChar(5000)
+    gpsId Int?
     avatarImageURI String?  @db.VarChar(256)
 
     createdAt DateTime @default(now()) @db.DateTime(0)
@@ -65,7 +67,11 @@ model UserInfo {
     joinedCampaign   JOIN_CompaignUser[]
     reportedCampaign REPORT_CompaignUser[]
     donedCampaign    DONE_CompaignUser[]
+    absentCampaign ABSENT_CompaignUser[]
+    notdoneCampaign NOTDONE_CompaignUser[]
     donedEmergency   DONE_EmergencyUser[]
+    gps UserGPS?
+    subscribedGPS SUBSCRIBE_UserGPS[]
     @@map("user_info")
 }
 
@@ -79,6 +85,8 @@ model Campaign {
     gpslongti     Float
     gpslati       Float
     imageURI      String?  @db.VarChar(256)
+    bannerURI      String?  @db.VarChar(256)
+    status Int @default(0)
 
     createdAt DateTime @default(now()) @db.DateTime(0)
     updatedAt DateTime @default(now()) @db.DateTime(0)
@@ -87,6 +95,8 @@ model Campaign {
     joined   JOIN_CompaignUser[]
     reported REPORT_CompaignUser[]
     doned    DONE_CompaignUser[]
+    absent ABSENT_CompaignUser[]
+    notdone NOTDONE_CompaignUser[]
     @@map("campaign")
 }
 
@@ -99,6 +109,8 @@ model Emergency {
     gpslongti Float
     gpslati   Float
     imageURI  String? @db.VarChar(256)
+    bannerURI      String?  @db.VarChar(256)
+    status Int @default(1)
 
     createdAt DateTime @default(now()) @db.DateTime(0)
     updatedAt DateTime @default(now()) @db.DateTime(0)
@@ -110,43 +122,117 @@ model Emergency {
 
 model JOIN_CompaignUser {
     id         Int @id @default(autoincrement())
-    compaignId Int
+    campaignId Int
     userId     Int
-    status  Int
+    status     Int @default(0)
+    
+    createdAt DateTime @default(now()) @db.DateTime(0)
+    updatedAt DateTime @default(now()) @db.DateTime(0)
 
-    compaign Campaign @relation(fields: [compaignId], references: [id], onDelete: Cascade)
+    campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
     user     UserInfo @relation(fields: [userId], references: [id], onDelete: Cascade)
+    @@unique([campaignId, userId])
     @@map("join_compaign_user")
 }
 
 model REPORT_CompaignUser {
     id         Int    @id @default(autoincrement())
-    compaignId Int
+    campaignId Int
     userId     Int
-    reason     String @db.VarChar(10000)
+    reason     String @db.VarChar(10000) @default("")
+    
+    createdAt DateTime @default(now()) @db.DateTime(0)
+    updatedAt DateTime @default(now()) @db.DateTime(0)
 
-    compaign Campaign @relation(fields: [compaignId], references: [id], onDelete: Cascade)
+    campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
     user     UserInfo @relation(fields: [userId], references: [id], onDelete: Cascade)
+    @@unique([campaignId, userId])
     @@map("report_compaign_user")
 }
 
 model DONE_CompaignUser {
     id         Int    @id @default(autoincrement())
-    compaignId Int
+    campaignId Int
     userId     Int
-    comment    String @db.VarChar(10000)
+    comment    String @db.VarChar(10000) @default("")
+    
+    createdAt DateTime @default(now()) @db.DateTime(0)
+    updatedAt DateTime @default(now()) @db.DateTime(0)
 
-    compaign Campaign @relation(fields: [compaignId], references: [id], onDelete: Cascade)
+    campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
     user     UserInfo @relation(fields: [userId], references: [id], onDelete: Cascade)
+    @@unique([campaignId, userId])
     @@map("done_compaign_user")
+}
+
+model NOTDONE_CompaignUser {
+    id         Int    @id @default(autoincrement())
+    campaignId Int
+    userId     Int
+    comment    String @db.VarChar(10000) @default("")
+    
+    createdAt DateTime @default(now()) @db.DateTime(0)
+    updatedAt DateTime @default(now()) @db.DateTime(0)
+
+    campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+    user     UserInfo @relation(fields: [userId], references: [id], onDelete: Cascade)
+    @@unique([campaignId, userId])
+    @@map("notdone_compaign_user")
+}
+
+model ABSENT_CompaignUser {
+    id         Int    @id @default(autoincrement())
+    campaignId Int
+    userId     Int
+    reason    String @db.VarChar(10000) @default("")
+    
+    createdAt DateTime @default(now()) @db.DateTime(0)
+    updatedAt DateTime @default(now()) @db.DateTime(0)
+
+    campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+    user     UserInfo @relation(fields: [userId], references: [id], onDelete: Cascade)
+    @@unique([campaignId, userId])
+    @@map("absent_compaign_user")
 }
 
 model DONE_EmergencyUser {
     id          Int @id @default(autoincrement())
     emergencyId Int
     userId      Int
+    
+    createdAt DateTime @default(now()) @db.DateTime(0)
+    updatedAt DateTime @default(now()) @db.DateTime(0)
 
     emergency Emergency @relation(fields: [emergencyId], references: [id], onDelete: Cascade)
     user      UserInfo  @relation(fields: [userId], references: [id], onDelete: Cascade)
+    @@unique([emergencyId, userId])
     @@map("done_emergency_user")
+}
+
+model UserGPS {
+    id          Int @id @default(autoincrement())
+    userId Int
+    longitude Float
+    latitude Float
+    liveStatus Int @default(1)
+    
+    createdAt DateTime @default(now()) @db.DateTime(0)
+    updatedAt DateTime @default(now()) @db.DateTime(0)
+
+    user UserInfo @relation(fields: [userId], references: [id], onDelete: Cascade)
+    subscriptions SUBSCRIBE_UserGPS[]
+
+    @@unique([userId])
+    @@map("user_gps")
+}
+
+model SUBSCRIBE_UserGPS {
+    id          Int @id @default(autoincrement())
+    userGPSId Int
+    subscriberId Int
+
+    userGPS UserGPS @relation(fields: [userGPSId], references: [id], onDelete: Cascade)
+    subscriber      UserInfo  @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+    @@unique([userGPSId, subscriberId], name: "unique_SUBSCRIBE")
+    @@map("track_user_gps")
 }

@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `session` ADD COLUMN `data` VARCHAR(2000) NOT NULL DEFAULT '{}';
