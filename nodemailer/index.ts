@@ -5,7 +5,7 @@ import Mail from 'nodemailer/lib/mailer';
 import path from 'path';
 import appConfig from '../config';
 
-const proxySender = "WebPhim <noreply@webphim.com>";
+const proxySender = "MeerApp <noreply@meerapp.com>";
 
 const smtpServerHost = 'smtp.gmail.com';
 const smtpServerPort = 587;

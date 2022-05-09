@@ -11,6 +11,7 @@ export const routeLogin = () => {
     const route = Router();
 
     route.use(json());
+
     route.post("/",
         RouteHandleWrapper.wrapCheckInput(input => {
             if (
@@ -20,7 +21,15 @@ export const routeLogin = () => {
                 && typeof input.account.password === "string"
                 && typeof input.deviceInfo === "string"
             ) {
-                return input;
+                return {
+                    data: {
+                        account: {
+                            username: input.account.username,
+                            password: input.account.password,
+                        },
+                        deviceInfo: input.deviceInfo,
+                    }
+                };
             }
         }, tag),
         RouteHandleWrapper.wrapHandleInput(async (input) => {
@@ -40,7 +49,42 @@ export const routeLogin = () => {
                     role: session.userRole,
                 };
             }
+            else{
+                throw buildResponseError(2, "Wrong information");
+            }
         }, tag)
+    );
+
+    route.post("/hello",
+        SessionHandler.sessionMiddleware,
+        RouteHandleWrapper.wrapMiddleware(async (req, res) => {
+            const userId = res.locals.session.userId;
+            const user = await myPrisma.userInfo.findUnique({
+                where: { id: userId },
+            });
+            if (user) {
+                res.json(buildResponseSuccess({
+                    userId: userId,
+                    fullname: user.fullname,
+                    avatarImageURI: user.avatarImageURI,
+                }));
+            }
+            else {
+                res.json(buildResponseError(401, "Invalid token"));
+            }
+        })
+    );
+
+    route.post("/signout",
+        SessionHandler.sessionMiddleware,
+        RouteHandleWrapper.wrapMiddleware(async (req, res) => {
+            helper.logger.traceWithTag(tag, "Signout session: " + JSON.stringify(res.locals.session, null, 2));
+            const sessionId = res.locals.session.id;
+            const user = await myPrisma.session.delete({
+                where: { id: sessionId },
+            });
+            res.json(buildResponseSuccess());
+        })
     );
 
     return route;

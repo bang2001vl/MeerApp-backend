@@ -342,6 +342,15 @@ async function findDetail(key: number) {
                         }
                     },
                 }
+            },
+            creator: {
+                select: {
+                    id: true,
+                    fullname : true,
+                    avatarImageURI: true,
+                    phone: true,
+                    email: true,
+                }
             }
         }
     });

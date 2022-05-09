@@ -208,10 +208,21 @@ async function findDetail(key: number) {
                             id: true,
                             fullname: true,
                             avatarImageURI: true,
+                            email: true,
+                            phone: true,
                         }
                     }
                 }
             },
+            creator: {
+                select: {
+                    id: true,
+                    fullname: true,
+                    avatarImageURI: true,
+                    email: true,
+                    phone: true,
+                }
+            }
         }
     });
     if (!result) {

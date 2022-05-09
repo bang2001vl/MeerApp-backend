@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 import { json, Router, urlencoded } from "express";
 import { sign, verify } from "jsonwebtoken";
 import { userInfo } from "os";
+import path from "path";
 import appConfig from "../../config";
 import helper from "../../helper";
 import { sendConfirmEmail } from "../../nodemailer";
@@ -36,7 +37,7 @@ export const signupRoute = () => {
                 ...optionJWT,
                 expiresIn: 48 * 60 * 60, // 48 hours
             })
-            const link = `${appConfig.domain}/signup/verify?token=${token}`;
+            const link = `http://${appConfig.domain}:${appConfig.port_http}/signup/verify?token=${token}`;
 
             // Send verify email
             const receiver = {
@@ -49,6 +50,12 @@ export const signupRoute = () => {
                 message: "Please check your email to verify your account",
             });
         }, tag, true),
+    );
+
+    route.get("/test",
+        async (req, res) => {
+            res.sendFile(path.resolve("nodemailer/template/success.html"));
+        },
     );
 
     route.get("/verify",
@@ -72,13 +79,12 @@ export const signupRoute = () => {
                         },
                     });
                     helper.logger.traceWithTag(tag, "Signup sucessfull with account" + JSON.stringify(decoded.account, null, 2));
-                    return res.redirect("http://google.com.vn");
+                    return res.sendFile(path.resolve("nodemailer/template/success.html"));
                 }
             }
-            else {
-                helper.logger.traceWithTag(tag, "Invalid query: " + req.query);
-                res.redirect("http://tiki.vn");
-            }
+            
+            helper.logger.traceWithTag(tag, "Invalid query: " + req.query);
+            res.status(401);
         },
     );
 
